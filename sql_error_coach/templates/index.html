@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SQL Error Coach — plain English for SQL errors</title>
+  <meta name="description" content="Paste a Postgres, MySQL, SQLite, or SQL Server error. Get a plain-English explanation, the fix, and a corrected query.">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,520;8..60,650&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css?v=1">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/">
+      <span class="mark" aria-hidden="true"></span>
+      <span>SQL Error Coach</span>
+    </a>
+    <p class="top-note">Ten errors · four databases · no account</p>
+  </header>
+
+  <main class="layout">
+    <section class="panel entry">
+      <p class="eyebrow">Paste the red text</p>
+      <h1>Read the error in plain English.</h1>
+      <p class="lede">The coach names the mistake, tells you what to change, and shows a corrected query. It does not connect to a database, and it does not run the query.</p>
+
+      <form id="coach">
+        <label for="error">Error message</label>
+        <textarea id="error" name="error" rows="8" spellcheck="false" placeholder="ERROR:  relation &quot;orders&quot; does not exist" required></textarea>
+
+        <label for="sql">Query that failed <span>optional</span></label>
+        <textarea id="sql" name="sql" rows="5" spellcheck="false" placeholder="SELECT * FROM orders;"></textarea>
+
+        <div class="row">
+          <div class="field">
+            <label for="dialect">Dialect</label>
+            <select id="dialect" name="dialect">
+              <option value="auto" selected>Auto</option>
+              <option value="postgres">Postgres</option>
+              <option value="mysql">MySQL</option>
+              <option value="sqlite">SQLite</option>
+              <option value="sqlserver">SQL Server</option>
+            </select>
+          </div>
+          <p class="hint">Auto reads the message and picks the database.</p>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="primary" id="explain">Explain this error</button>
+          <button type="button" class="quiet" id="clear">Clear</button>
+          <span class="kbd">Ctrl + Enter</span>
+        </div>
+      </form>
+
+      <div class="samples">
+        <p class="sample-label">Try one</p>
+        <div class="chips">
+          {% for rule in rules %}
+          <button type="button" class="chip" data-code="{{ rule.code }}">
+            <span>{{ rule.title }}</span>
+            <small>{{ rule.dialect_label }}</small>
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="panel answer" id="result" aria-live="polite">
+      <div id="empty">
+        <p class="eyebrow">What you get</p>
+        <h2>A reason, the fix, and a query you can compare.</h2>
+        <ol class="catalog">
+          {% for rule in rules %}
+          <li>
+            <strong>{{ rule.title }}</strong>
+            <span>{{ rule.summary }}</span>
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+      <div id="report" hidden></div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>v{{ version }} · Postgres, MySQL, SQLite, and SQL Server · offline · MIT · Veliation AI</p>
+  </footer>
+  <script id="samples" type="application/json">{{ samples_json | safe }}</script>
+  <script src="/static/app.js?v=1"></script>
+</body>
+</html>
