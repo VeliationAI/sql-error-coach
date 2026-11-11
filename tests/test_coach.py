@@ -140,6 +140,8 @@ def test_web_explain_and_health():
     page = client.get("/")
     assert page.status_code == 200
     assert "SQL Error Coach" in page.text
+    assert "Open source on GitHub" in page.text
+    assert "https://github.com/VeliationAI/sql-error-coach" in page.text
     assert "Missing table" in page.text
     assert "That table is not in this database" in page.text
 

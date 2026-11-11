@@ -60,10 +60,37 @@ button, textarea, select { font: inherit; color: inherit; }
     var(--blue);
 }
 
+.top { flex-wrap: wrap; }
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .top-note, .foot p, .hint, .sample-label, .eyebrow {
   color: var(--muted);
   font-size: 0.86rem;
 }
+
+.top-note { margin: 0 0 0 auto; }
+
+.source {
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 650;
+  text-decoration: none;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+
+.source:hover, .source:focus-visible { border-color: var(--blue); color: var(--blue); }
+
+.foot a { color: inherit; font-weight: 650; }
 
 .layout {
   display: grid;
@@ -336,7 +363,8 @@ pre {
 
 @media (max-width: 860px) {
   .layout, .row, .top { grid-template-columns: 1fr; display: grid; }
-  .top { display: flex; }
+  .top { display: flex; flex-wrap: wrap; }
+  .top-note { margin-left: 0; }
   .actions { flex-wrap: wrap; }
   .plain { font-size: 1.4rem; }
   .compare { grid-template-columns: 1fr; }
