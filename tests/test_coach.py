@@ -12,10 +12,12 @@ runner = CliRunner()
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_catalog_has_the_ten_errors():
+def test_catalog_covers_common_errors_without_duplicates():
     codes = [rule.code for rule in RULES]
-    assert len(codes) == 10
-    assert len(set(codes)) == 10
+    assert len(codes) == len(set(codes))
+    assert len(codes) >= 24
+    for required in ("syntax", "missing_relation", "division_by_zero", "permission_denied", "deadlock"):
+        assert required in codes
 
 
 def test_every_example_matches_its_rule_and_dialect():
@@ -79,11 +81,30 @@ def test_mechanical_rewrites():
     assert "12a" not in junk["corrected_query"]
 
 
-def test_unknown_error_is_honest():
-    result = explain("ERROR:  deadlock detected\nDETAIL:  Process 42 waits for ShareLock.")
+def test_unknown_error_is_read_not_invented():
+    result = explain(
+        'ERROR:  could not resize shared memory segment "main" to 8388608 bytes\nLINE 1: SELECT 1;'
+    )
     assert result["matched"] is False
     assert result["dialect"] == "postgres"
     assert result["corrected_query"] == ""
+    assert result["identifiers"]["object"] == "main"
+    assert result["identifiers"]["line"] == "1"
+    assert "main" in result["plain"]
+
+    deadlock = explain("ERROR:  deadlock detected")
+    assert deadlock["matched"] is True
+    assert deadlock["code"] == "deadlock"
+
+
+def test_aggregate_where_is_rewritten_to_having():
+    result = explain(
+        "ERROR:  aggregate functions are not allowed in WHERE",
+        "SELECT customer_id FROM orders WHERE SUM(total) > 100 GROUP BY customer_id;",
+    )
+    assert result["correction_source"] == "yours"
+    assert "HAVING SUM(total)" in result["corrected_query"]
+    assert "WHERE" not in result["corrected_query"].upper()
 
 
 def test_cli_file_json_and_list(tmp_path: Path):
@@ -119,6 +140,7 @@ def test_web_explain_and_health():
     page = client.get("/")
     assert page.status_code == 200
     assert "SQL Error Coach" in page.text
+    assert "Missing table" in page.text
     assert "That table is not in this database" in page.text
 
     response = client.post(

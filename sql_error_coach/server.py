@@ -12,6 +12,52 @@ from fastapi.templating import Jinja2Templates
 
 from sql_error_coach import __version__
 from sql_error_coach.catalog import DIALECT_LABELS, RULES
+
+SHORT_LABELS = {
+    "missing_relation": "Missing table",
+    "missing_column": "Missing column",
+    "ambiguous_column": "Ambiguous",
+    "group_by": "GROUP BY",
+    "not_null": "NOT NULL",
+    "unique_violation": "Duplicate",
+    "foreign_key": "Foreign key",
+    "datatype_mismatch": "Wrong type",
+    "subquery_cardinality": "Many rows",
+    "syntax": "Syntax",
+    "division_by_zero": "Divide by zero",
+    "permission_denied": "Permission",
+    "missing_database": "Missing database",
+    "missing_function": "Missing function",
+    "operator_mismatch": "Type mismatch",
+    "insert_count": "INSERT count",
+    "value_too_long": "Value too long",
+    "aggregate_where": "WHERE aggregate",
+    "undeclared_variable": "Variable",
+    "transaction_aborted": "Aborted transaction",
+    "deadlock": "Deadlock",
+    "union_mismatch": "UNION width",
+    "subquery_alias": "Subquery alias",
+    "missing_from": "Missing FROM",
+    "check_constraint": "CHECK",
+    "dependent_objects": "Still in use",
+}
+
+FEATURED = (
+    "syntax",
+    "missing_relation",
+    "missing_column",
+    "ambiguous_column",
+    "group_by",
+    "not_null",
+    "unique_violation",
+    "foreign_key",
+    "datatype_mismatch",
+    "subquery_cardinality",
+    "division_by_zero",
+    "permission_denied",
+    "missing_function",
+    "deadlock",
+)
 from sql_error_coach.coach import explain
 
 PACKAGE_DIR = Path(__file__).resolve().parent
@@ -28,27 +74,30 @@ def create_app() -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request) -> HTMLResponse:
+        shown = [rule for rule in RULES if rule.code in FEATURED]
         samples = {
             rule.code: {
                 "error": rule.examples[0].error,
                 "sql": rule.examples[0].sql,
                 "dialect": rule.examples[0].dialect,
             }
-            for rule in RULES
+            for rule in shown
         }
         return TEMPLATES.TemplateResponse(
             request,
             "index.html",
             {
                 "version": __version__,
+                "rule_count": len(RULES),
                 "rules": [
                     {
                         "code": rule.code,
                         "title": rule.title,
+                        "short": SHORT_LABELS.get(rule.code, rule.title),
                         "summary": rule.summary,
                         "dialect_label": DIALECT_LABELS[rule.examples[0].dialect],
                     }
-                    for rule in RULES
+                    for rule in shown
                 ],
                 "samples_json": json.dumps(samples).replace("<", "\\u003c"),
             },

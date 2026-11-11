@@ -2,7 +2,9 @@
 
 Paste a SQL error. Get a plain-English explanation, the change to make, and a corrected query.
 
-v0.1 knows the 10 errors learners hit most often on Postgres, MySQL, SQLite, and SQL Server. Matching is deterministic: the message text is compared with known wordings. No LLM, no database connection, and the query is never executed.
+Stored fixes cover the errors learners hit most often on Postgres, MySQL, SQLite, and SQL Server: the original ten, plus division by zero, permission denied, a missing database or function, a type mismatch, an INSERT with the wrong number of values, a value that does not fit, an aggregate in WHERE, an undeclared variable, an aborted transaction, a deadlock, a UNION with unequal sides, a subquery with no alias, a missing FROM entry, a CHECK failure, and a drop blocked by another object.
+
+Any other message is still read. The coach names the database, the vendor code, the line number, and the quoted object. It does not invent a rewritten query for wording it has not stored. Matching is deterministic. No LLM, no database connection, and the query is never executed.
 
 ## Install
 
@@ -26,7 +28,7 @@ sql-error-coach serve
 
 `serve` opens the web page at http://127.0.0.1:8000. Paste the error, optionally paste the query, and read the fix. Auto-detect covers the four dialects.
 
-## The 10 errors
+## Stored fixes learners hit first
 
 | Error | What it usually means |
 | --- | --- |

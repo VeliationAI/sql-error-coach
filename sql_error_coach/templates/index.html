@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,520;8..60,650&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css?v=1">
+  <link rel="stylesheet" href="/static/styles.css?v=3">
 </head>
 <body>
   <header class="top">
@@ -17,21 +17,23 @@
       <span class="mark" aria-hidden="true"></span>
       <span>SQL Error Coach</span>
     </a>
-    <p class="top-note">Ten errors · four databases · no account</p>
+    <p class="top-note">{{ rule_count }} stored fixes · any other message is read · no account</p>
   </header>
 
   <main class="layout">
     <section class="panel entry">
       <p class="eyebrow">Paste the red text</p>
       <h1>Read the error in plain English.</h1>
-      <p class="lede">The coach names the mistake, tells you what to change, and shows a corrected query. It does not connect to a database, and it does not run the query.</p>
+      <p class="lede">A known error gets the reason, the change, and a corrected query. Any other message is read for the database, the line, and the quoted name. Nothing is sent to a model, and the query is never run.</p>
 
       <form id="coach">
         <label for="error">Error message</label>
         <textarea id="error" name="error" rows="8" spellcheck="false" placeholder="ERROR:  relation &quot;orders&quot; does not exist" required></textarea>
 
-        <label for="sql">Query that failed <span>optional</span></label>
-        <textarea id="sql" name="sql" rows="5" spellcheck="false" placeholder="SELECT * FROM orders;"></textarea>
+        <details id="query-box">
+          <summary>Add the query that failed <span>optional</span></summary>
+          <textarea id="sql" name="sql" rows="4" spellcheck="false" aria-label="Query that failed" placeholder="SELECT * FROM orders;"></textarea>
+        </details>
 
         <div class="row">
           <div class="field">
@@ -58,8 +60,8 @@
         <p class="sample-label">Try one</p>
         <div class="chips">
           {% for rule in rules %}
-          <button type="button" class="chip" data-code="{{ rule.code }}">
-            <span>{{ rule.title }}</span>
+          <button type="button" class="chip" data-code="{{ rule.code }}" title="{{ rule.title }}" aria-pressed="false">
+            <span>{{ rule.short }}</span>
             <small>{{ rule.dialect_label }}</small>
           </button>
           {% endfor %}
@@ -69,15 +71,12 @@
 
     <section class="panel answer" id="result" aria-live="polite">
       <div id="empty">
-        <p class="eyebrow">What you get</p>
-        <h2>A reason, the fix, and a query you can compare.</h2>
-        <ol class="catalog">
-          {% for rule in rules %}
-          <li>
-            <strong>{{ rule.title }}</strong>
-            <span>{{ rule.summary }}</span>
-          </li>
-          {% endfor %}
+        <p class="eyebrow">The answer lands here</p>
+        <h2>A name for the mistake, then the query to compare.</h2>
+        <ol class="promises">
+          <li><b>1</b><span>The name of the mistake, or, for an unfamiliar message, the line and the quoted name.</span></li>
+          <li><b>2</b><span>The change to make, in order.</span></li>
+          <li><b>3</b><span>The failed query beside a corrected one you can copy.</span></li>
         </ol>
       </div>
       <div id="report" hidden></div>
@@ -88,6 +87,6 @@
     <p>v{{ version }} · Postgres, MySQL, SQLite, and SQL Server · offline · MIT · Veliation AI</p>
   </footer>
   <script id="samples" type="application/json">{{ samples_json | safe }}</script>
-  <script src="/static/app.js?v=1"></script>
+  <script src="/static/app.js?v=4"></script>
 </body>
 </html>

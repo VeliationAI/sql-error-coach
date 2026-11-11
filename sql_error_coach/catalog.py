@@ -41,7 +41,7 @@ def _p(*parts: str) -> re.Pattern[str]:
     return re.compile("|".join(parts), re.IGNORECASE)
 
 
-RULES: tuple[Rule, ...] = (
+_CORE: tuple[Rule, ...] = (
     Rule(
         code="missing_relation",
         title="That table is not in this database",
@@ -537,6 +537,11 @@ DIALECT_TIPS: dict[tuple[str, str], str] = {
     ("group_by", "sqlite"): "SQLite usually allows this query. Postgres, MySQL in ONLY_FULL_GROUP_BY mode, and SQL Server do not.",
     ("ambiguous_column", "sqlite"): "SQLite prints ambiguous column name: and then the bare name.",
 }
+
+from sql_error_coach.more_rules import MORE_RULES, MORE_TIPS  # noqa: E402
+
+RULES: tuple[Rule, ...] = MORE_RULES + _CORE
+DIALECT_TIPS.update(MORE_TIPS)
 
 
 def rule_by_code(code: str) -> Rule:

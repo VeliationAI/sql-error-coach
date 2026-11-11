@@ -72,9 +72,10 @@ def detect_dialect(text: str, override: str = "auto") -> str:
     if re.search(r"\bmsg\s+\d+\s*,", low):
         return "sqlserver"
     if re.search(
-        r"no such table|no such column|constraint failed|sub-select returns|"
+        r"no such table|no such column|no such function|constraint failed|sub-select returns|"
         r"datatype mismatch|cannot store\s+\w+\s+value|ambiguous column name\s*:|"
-        r"near\s+[\"'].+[\"']\s*:\s*syntax error",
+        r"values were supplied|misuse of aggregate|same number of result columns|"
+        r"check constraint failed|near\s+[\"'].+[\"']\s*:\s*syntax error",
         low,
     ):
         return "sqlite"
@@ -95,7 +96,7 @@ def detect_dialect(text: str, override: str = "auto") -> str:
         low,
     ):
         return "sqlserver"
-    if "error:" in low or "sqlstate" in low or low.startswith("error"):
+    if "error:" in low or "fatal:" in low or "sqlstate" in low or low.startswith("error"):
         return "postgres"
     return "unknown"
 
@@ -175,6 +176,28 @@ def _identifiers(code: str, text: str) -> dict[str, str]:
         take("literal", r"""value:\s*["'`]([^"'`]+)["'`]""")
         take("literal", r"""varchar value\s+["'`]([^"'`]+)["'`]""")
         take("literal", r"""["'`]([^"'`]+)["'`]\s+for column""")
+    elif code == "permission_denied":
+        take("table", r"""for table\s+["'`]?([A-Za-z_][\w.]*)""")
+        take("table", r"""object\s+["'`]([^"'`]+)["'`]""")
+    elif code == "missing_database":
+        take("table", r"""database\s+["'`]([^"'`]+)["'`]""")
+        take("table", r"""unknown database\s+["'`]([^"'`]+)["'`]""")
+    elif code == "missing_function":
+        take("function", r"""no such function:\s*([A-Za-z_][\w.]*)""")
+        take("function", r"""function\s+([A-Za-z_][\w.]*)""")
+        take("function", r"""["'`]([A-Za-z_][\w.]*)["'`]\s+is not a recognized""")
+    elif code == "operator_mismatch":
+        take("token", r"""operator does not exist:\s*([^\n]+)""")
+    elif code == "missing_from":
+        take("table", r"""for table\s+["'`]([^"'`]+)["'`]""")
+    elif code == "check_constraint":
+        take("object", r"""check constraint\s+["'`]([^"'`]+)["'`]""")
+        take("object", r"""check constraint failed:\s*(\S+)""")
+    elif code == "undeclared_variable":
+        take("object", r"""scalar variable\s+["'](@?\w+)""")
+        take("object", r"""parameter\s+(\$\d+)""")
+    elif code == "value_too_long":
+        take("column", r"""column\s+["'`]([^"'`]+)["'`]""")
     return found
 
 
@@ -225,6 +248,20 @@ def _plain(rule: Rule, identifiers: dict[str, str]) -> str:
             return f"{literal} is not a valid {type_name.strip()} value."
     if rule.code == "subquery_cardinality":
         return "This subquery is used where one value is required, and it returned more than one row."
+    if rule.code == "permission_denied":
+        name = table or "that object"
+        return f"This login is not allowed to use {name}. The query text is not the problem."
+    if rule.code == "missing_database" and table:
+        return f"There is no database named {table} on this server."
+    if rule.code == "missing_function":
+        name = identifiers.get("function") or "that function"
+        return f"There is no function {name} for these argument types."
+    if rule.code == "operator_mismatch" and token:
+        return f"This comparison is not defined for {token.strip()}."
+    if rule.code == "missing_from" and table:
+        return f"{table} is used in the query, and it is not in the FROM clause."
+    if rule.code == "undeclared_variable" and identifiers.get("object"):
+        return f"{identifiers['object']} is used before it is declared."
     return rule.summary
 
 
@@ -246,6 +283,8 @@ def _rewrite(code: str, sql: str, identifiers: dict[str, str]) -> str | None:
         return _fix_subquery(sql)
     if code == "datatype_mismatch":
         return _fix_datatype(sql, identifiers.get("literal"))
+    if code == "aggregate_where":
+        return _fix_having(sql)
     return None
 
 
@@ -296,6 +335,16 @@ def _fix_subquery(sql: str) -> str | None:
     return updated if count else None
 
 
+def _fix_having(sql: str) -> str | None:
+    match = re.search(r"\bwhere\b", sql, re.IGNORECASE)
+    if not match:
+        return None
+    rest = sql[match.end() :]
+    if not _AGGREGATE.search(rest):
+        return None
+    return sql[: match.start()] + "HAVING" + rest
+
+
 def _fix_datatype(sql: str, literal: str | None) -> str | None:
     if not literal or not re.fullmatch(r"\d+", literal):
         return None
@@ -323,21 +372,54 @@ def _split_csv(text: str) -> list[str]:
     return parts
 
 
+def _read_unknown(message: str) -> dict[str, str]:
+    found: dict[str, str] = {}
+    code = re.search(r"\b(?:ERROR|Msg)\s+(\d{3,4})\b", message, re.IGNORECASE)
+    if code:
+        found["vendor_code"] = code.group(1)
+    state = re.search(r"\bSQLSTATE[:\s]+([0-9A-Z]{5})\b", message, re.IGNORECASE)
+    if state:
+        found["sqlstate"] = state.group(1).upper()
+    line = re.search(r"\bLINE\s+(\d+)\b", message, re.IGNORECASE)
+    if line:
+        found["line"] = line.group(1)
+    names = [
+        item
+        for item in re.findall(r"""["'`]([^"'`\n]{1,60})["'`]""", message)
+        if " " not in item.strip()
+    ]
+    if names:
+        found["object"] = names[0]
+    return found
+
+
 def _unknown(message: str, query: str, dialect: str) -> dict[str, object]:
+    facts = _read_unknown(message)
+    first = " ".join(message.splitlines()[0].split())
+    label = DIALECT_LABELS.get(dialect, "The database")
+    name = facts.get("object", "")
+    plain = f"{label} said: {first}"
+    plain += f" The name to check is {name}." if name else " There is no stored fix for this wording."
+    steps = []
+    if facts.get("line"):
+        steps.append(f"Start at line {facts['line']}.")
+    if name:
+        steps.append(f"Check {name}: spelling, schema, and whether this account can use it.")
+    elif facts.get("vendor_code"):
+        steps.append(f"The vendor code is {facts['vendor_code']}. That number is the stable part of the message.")
+    else:
+        steps.append("Read the first line as the whole reason. There is no more specific fix stored.")
+    steps.append("There is no rewritten query, because this wording is not a stored fix.")
     return {
         "matched": False,
         "code": "unknown",
-        "title": "Not one of the 10 errors yet",
-        "plain": "v0.1 explains the 10 errors learners hit most often. This message did not match them.",
-        "why": "The coach matches the wording of those errors on Postgres, MySQL, SQLite, and SQL Server. It does not guess past that list.",
-        "steps": [
-            "Read the first line again. The word in quotes is the object the database refused.",
-            "Check the line number, then the comma, quote, or keyword just before the failure.",
-            "If the same message shows up often in class, it is a candidate for the next version.",
-        ],
+        "title": "No stored fix for this wording",
+        "plain": plain,
+        "why": "A stored fix exists only when the wording matches a known error. For everything else, the coach reads the database, the code, the line, and the quoted name out of the message.",
+        "steps": steps,
         "dialect": dialect,
         "dialect_label": DIALECT_LABELS.get(dialect, "Unknown dialect"),
-        "identifiers": {},
+        "identifiers": facts,
         "sql": query,
         "example_before": "",
         "example_after": "",
