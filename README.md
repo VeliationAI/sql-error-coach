@@ -45,7 +45,9 @@ When the query is pasted, a few of these are edited directly: `FORM` to `FROM`, 
 
 ## Web service
 
-The Render service uses the free Python plan in Oregon.
+Live app: https://sql-error-coach.onrender.com
+
+The Render service uses the free Python plan in Oregon. It sleeps after 15 minutes without a request, then wakes on the next visit.
 
 ```bash
 pip install -r requirements.txt && pip install -e .
